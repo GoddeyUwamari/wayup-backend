@@ -182,7 +182,7 @@ const handleContactForm = async (req, res) => {
       source: 'contact_form',
       type: 'contact_form',
       priority,
-      status: 'new'
+      status: 'pending'
     };
 
     // Add tradeshow info if provided
