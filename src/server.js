@@ -26,18 +26,17 @@ const processedSubmissions = new Set(); // Track processed submissions
 
 // 🔧 UPDATED: CORS configuration for VPS production
 const socketCorsConfig = {
-  origin: process.env.NODE_ENV === 'production'
+  origin: process.env.FRONTEND_URLS 
+    ? process.env.FRONTEND_URLS.split(',')
+    : process.env.NODE_ENV === 'production'
     ? [
         "https://wayuptechn.com",
         "https://www.wayuptechn.com",
-        "http://162.0.233.208:3000",           // Your VPS IP frontend
-        "http://server1.wayuptechn.com:3000"   // Your hostname frontend
       ]
     : [
         "http://localhost:3000",
         "http://localhost:3001", 
         "http://127.0.0.1:3000",
-        "http://localhost:8000"
       ],
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true,
