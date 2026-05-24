@@ -42,13 +42,13 @@ const handleContactForm = async (req, res) => {
       priority = 'normal'
     } = req.body;
 
-    // Validate session ID format for contact forms
-    if (!sessionId || !sessionId.startsWith('contact_')) {
-      console.log('❌ Invalid session ID format for contact form');
+    // Validate session ID is present
+    if (!sessionId) {
+      console.log('❌ Missing session ID for contact form');
       return res.status(400).json({
         success: false,
         error: 'Invalid session ID',
-        details: 'Contact form session ID must start with "contact_"',
+        details: 'Contact form submission requires a session ID',
         received: sessionId
       });
     }

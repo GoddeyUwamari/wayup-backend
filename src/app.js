@@ -41,6 +41,48 @@ setInterval(() => {
   console.log('🗑️ Cleaned up processed requests cache');
 }, 60 * 60 * 1000);
 
+// CORS origins - Use environment variable or fallback
+const origins = process.env.FRONTEND_URLS
+  ? process.env.FRONTEND_URLS.split(',')
+  : [
+      "https://wayuptechn.com",
+      "https://www.wayuptechn.com",
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://127.0.0.1:3000",
+    ];
+
+console.log('🌐 CORS Allowed Origins:', origins);
+
+// CORS must be first — before body parsing — so preflight responses and
+// error-path responses always carry the correct Access-Control-Allow-Origin header.
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+
+    // Check if origin is in the allowed list
+    if (origins.indexOf(origin) !== -1) {
+      console.log('✅ CORS allowed for origin:', origin);
+      return callback(null, true);
+    }
+
+    // Allow any Vercel preview URL for wayup-technology
+    if (origin && origin.match(/^https:\/\/wayup-technology-[a-z0-9]+-goddeyuwamaris-projects\.vercel\.app$/)) {
+      console.log('✅ CORS allowed for Vercel preview:', origin);
+      return callback(null, true);
+    }
+
+    console.log('❌ CORS blocked origin:', origin);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+  optionsSuccessStatus: 200
+}));
+
+app.options('*', cors());
+
 // Enhanced request logging middleware with separation awareness
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
@@ -48,14 +90,14 @@ app.use((req, res, next) => {
   console.log(`Time: ${timestamp}`);
   console.log(`IP: ${req.ip}`);
   console.log(`User-Agent: ${req.get('User-Agent')?.substring(0, 50)}...`);
-  
+
   // Identify system based on route
   if (req.path.includes('/contact')) {
     console.log('📝 CONTACT FORM SYSTEM REQUEST');
   } else if (req.path.includes('/chat')) {
     console.log('💬 CHAT WIDGET SYSTEM REQUEST');
   }
-  
+
   next();
 });
 
@@ -100,12 +142,19 @@ app.use((req, res, next) => {
         });
       }
       
-      // Update request tracking
+      // Update request frequency tracking
       requestCounters.set(sessionKey, now);
-      
-      // Mark this request as being processed
-      processedRequests.set(requestKey, now);
-      
+
+      // Mark as processed only after the controller sends a successful response,
+      // so a controller-level failure doesn't permanently block retries.
+      const originalJson = res.json.bind(res);
+      res.json = function (body) {
+        if (body && body.success) {
+          processedRequests.set(requestKey, Date.now());
+        }
+        return originalJson(body);
+      };
+
       console.log(`✅ REQUEST AUTHORIZED: ${requestKey}`);
     }
   }
@@ -167,46 +216,6 @@ app.use((req, res, next) => {
   }
   next();
 });
-
-// CORS origins - Use environment variable or fallback
-const origins = process.env.FRONTEND_URLS 
-  ? process.env.FRONTEND_URLS.split(',')
-  : [
-      "https://wayuptechn.com",
-      "https://www.wayuptechn.com", 
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://127.0.0.1:3000",
-    ];
-
-console.log('🌐 CORS Allowed Origins:', origins);
-
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    
-    // Check if origin is in the allowed list
-    if (origins.indexOf(origin) !== -1) {
-      console.log('✅ CORS allowed for origin:', origin);
-      return callback(null, true);
-    }
-    
-    // Allow any Vercel preview URL for wayup-technology
-    if (origin && origin.match(/^https:\/\/wayup-technology-[a-z0-9]+-goddeyuwamaris-projects\.vercel\.app$/)) {
-      console.log('✅ CORS allowed for Vercel preview:', origin);
-      return callback(null, true);
-    }
-    
-    console.log('❌ CORS blocked origin:', origin);
-    callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
-  optionsSuccessStatus: 200
-}));
-
-app.options('*', cors());
 
 // Health check route with system status
 app.get('/api/health', (req, res) => {
