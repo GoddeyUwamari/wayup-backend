@@ -26,18 +26,28 @@ const processedSubmissions = new Set(); // Track processed submissions
 
 // 🔧 UPDATED: CORS configuration for VPS production
 const socketCorsConfig = {
-  origin: process.env.FRONTEND_URLS 
-    ? process.env.FRONTEND_URLS.split(',')
-    : process.env.NODE_ENV === 'production'
-    ? [
-        "https://wayuptechn.com",
-        "https://www.wayuptechn.com",
-      ]
-    : [
-        "http://localhost:3000",
-        "http://localhost:3001", 
-        "http://127.0.0.1:3000",
-      ],
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    
+    const allowed = process.env.FRONTEND_URLS
+      ? process.env.FRONTEND_URLS.split(',')
+      : [
+          "https://wayuptechn.com",
+          "https://www.wayuptechn.com",
+          "http://localhost:3000",
+          "http://localhost:3001",
+          "http://127.0.0.1:3000",
+        ];
+
+    if (allowed.indexOf(origin) !== -1) return callback(null, true);
+
+    // Allow Vercel preview URLs
+    if (origin.match(/^https:\/\/wayup-technology-[a-z0-9]+-goddeyuwamaris-projects\.vercel\.app$/)) {
+      return callback(null, true);
+    }
+
+    callback(new Error('Not allowed by CORS'));
+  },
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true,
   allowedHeaders: ["Content-Type", "Authorization", "my-custom-header"]
