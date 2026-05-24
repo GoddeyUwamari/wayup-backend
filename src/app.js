@@ -168,21 +168,18 @@ app.use((req, res, next) => {
   next();
 });
 
-// UPDATED CORS origins (✅ With HTTPS URLs)
-const origins = [
-  "https://wayuptechn.com",
-  "https://www.wayuptechn.com", 
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://127.0.0.1:3000",
-  "https://localhost:3000",              // ✅ HTTPS development
-  // 🔧 VPS Production URLs:
-  "http://162.0.233.208:3000",           // Your VPS IP frontend
-  "http://server1.wayuptechn.com:3000",  // Your hostname frontend
-  // ✅ NEW: Allow direct access to your backend for testing
-  "https://162.0.233.208:8000",          // ✅ Your HTTPS backend
-  "http://162.0.233.208:8000"            // ✅ HTTP fallback
-];
+// CORS origins - Use environment variable or fallback
+const origins = process.env.FRONTEND_URLS 
+  ? process.env.FRONTEND_URLS.split(',')
+  : [
+      "https://wayuptechn.com",
+      "https://www.wayuptechn.com", 
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://127.0.0.1:3000",
+    ];
+
+console.log('🌐 CORS Allowed Origins:', origins);
 
 app.use(cors({
   origin: function (origin, callback) {
