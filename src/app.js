@@ -184,14 +184,21 @@ console.log('🌐 CORS Allowed Origins:', origins);
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
-        
+    
+    // Check if origin is in the allowed list
     if (origins.indexOf(origin) !== -1) {
       console.log('✅ CORS allowed for origin:', origin);
-      callback(null, true);
-    } else {
-      console.log('❌ CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
+      return callback(null, true);
     }
+    
+    // Allow any Vercel preview URL for wayup-technology
+    if (origin && origin.match(/^https:\/\/wayup-technology-[a-z0-9]+-goddeyuwamaris-projects\.vercel\.app$/)) {
+      console.log('✅ CORS allowed for Vercel preview:', origin);
+      return callback(null, true);
+    }
+    
+    console.log('❌ CORS blocked origin:', origin);
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
