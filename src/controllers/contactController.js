@@ -1,5 +1,7 @@
 // controllers/contactController.js - CONTACT FORMS ONLY (NO CHAT WIDGET)
 const Contact = require('../models/contactModel');
+const { Resend } = require('resend');
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Handle ONLY contact form submissions (NO chat widget data)
 const handleContactForm = async (req, res) => {
@@ -118,13 +120,12 @@ const handleContactForm = async (req, res) => {
     // Check for existing contact by email (contact forms only)
     const existingContact = await Contact.findOne({ 
       email: finalEmail,
-      source: 'contact_form' // Only check contact form submissions
+      source: 'contact_form'
     });
     
     if (existingContact) {
       console.log('📝 Updating existing contact form submission:', existingContact._id);
       
-      // Update existing contact form submission
       const updateData = {
         name: finalName,
         phone: finalPhone,
@@ -138,10 +139,9 @@ const handleContactForm = async (req, res) => {
         type: 'contact_form',
         priority,
         lastContactDate: new Date(),
-        sessionId: sessionId // Use the provided session ID
+        sessionId: sessionId
       };
 
-      // Add tradeshow info if provided
       if (seenAtTradeshow !== undefined) {
         updateData.tradeshowResponse = seenAtTradeshow;
       }
@@ -152,6 +152,32 @@ const handleContactForm = async (req, res) => {
           updateData,
           { new: true, runValidators: true }
         );
+
+        // Send email notification for returning contact
+        try {
+          await resend.emails.send({
+            from: 'noreply@wayuptechn.com',
+            to: 'projectmanager@wayuptechn.com',
+            subject: `🔄 Returning Contact: ${finalName} — ${finalProjectType}`,
+            html: `
+              <h2>Returning Contact Form Submission</h2>
+              <p><strong>Name:</strong> ${finalName}</p>
+              <p><strong>Email:</strong> ${finalEmail}</p>
+              <p><strong>Phone:</strong> ${finalPhone || 'Not provided'}</p>
+              <p><strong>Company:</strong> ${finalCompany || 'Not provided'}</p>
+              <p><strong>Project Type:</strong> ${finalProjectType}</p>
+              <p><strong>Message:</strong> ${finalDescription}</p>
+              <p><strong>Session ID:</strong> ${sessionId}</p>
+              <p><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
+              <p style="color: orange;"><em>Note: This contact already exists in the system and was updated.</em></p>
+              <hr/>
+              <p><a href="https://cloud.mongodb.com">View in MongoDB Atlas</a></p>
+            `
+          });
+          console.log('📧 Email notification sent for returning contact');
+        } catch (emailError) {
+          console.error('⚠️ Email notification failed (non-critical):', emailError.message);
+        }
 
         console.log('✅ Contact form updated successfully');
         return res.status(200).json({
@@ -169,7 +195,7 @@ const handleContactForm = async (req, res) => {
 
     // Create new contact from contact form
     const contactData = {
-      sessionId: sessionId, // Use the provided session ID
+      sessionId: sessionId,
       name: finalName,
       email: finalEmail,
       phone: finalPhone,
@@ -185,7 +211,6 @@ const handleContactForm = async (req, res) => {
       status: 'pending'
     };
 
-    // Add tradeshow info if provided
     if (seenAtTradeshow !== undefined) {
       contactData.tradeshowResponse = seenAtTradeshow;
     }
@@ -197,6 +222,34 @@ const handleContactForm = async (req, res) => {
       const newContact = await Contact.create(contactData);
       console.log('✅ New contact form submission created successfully:', newContact._id);
 
+      // Send email notification for new contact
+      try {
+        await resend.emails.send({
+          from: 'noreply@wayuptechn.com',
+          to: 'projectmanager@wayuptechn.com',
+          subject: `🔔 New Lead: ${finalName} — ${finalProjectType}`,
+          html: `
+            <h2 style="color: #ef5a16;">New Contact Form Submission</h2>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="padding: 8px; font-weight: bold;">Name</td><td style="padding: 8px;">${finalName}</td></tr>
+              <tr style="background: #f9f9f9;"><td style="padding: 8px; font-weight: bold;">Email</td><td style="padding: 8px;"><a href="mailto:${finalEmail}">${finalEmail}</a></td></tr>
+              <tr><td style="padding: 8px; font-weight: bold;">Phone</td><td style="padding: 8px;">${finalPhone || 'Not provided'}</td></tr>
+              <tr style="background: #f9f9f9;"><td style="padding: 8px; font-weight: bold;">Company</td><td style="padding: 8px;">${finalCompany || 'Not provided'}</td></tr>
+              <tr><td style="padding: 8px; font-weight: bold;">Project Type</td><td style="padding: 8px;">${finalProjectType}</td></tr>
+              <tr style="background: #f9f9f9;"><td style="padding: 8px; font-weight: bold;">Message</td><td style="padding: 8px;">${finalDescription}</td></tr>
+              <tr><td style="padding: 8px; font-weight: bold;">Submitted</td><td style="padding: 8px;">${new Date().toLocaleString()}</td></tr>
+            </table>
+            <br/>
+            <p><a href="mailto:${finalEmail}" style="background: #ef5a16; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reply to ${finalName}</a></p>
+            <hr/>
+            <p style="color: #888; font-size: 12px;"><a href="https://cloud.mongodb.com">View in MongoDB Atlas</a> | WayUP Technology</p>
+          `
+        });
+        console.log('📧 Email notification sent for new contact form submission');
+      } catch (emailError) {
+        console.error('⚠️ Email notification failed (non-critical):', emailError.message);
+      }
+
       res.status(201).json({
         success: true,
         contact: newContact,
@@ -207,7 +260,6 @@ const handleContactForm = async (req, res) => {
     } catch (createError) {
       console.error('❌ Error creating contact form submission:', createError);
       
-      // Handle duplicate sessionId errors
       if (createError.code === 11000 && createError.keyPattern?.sessionId) {
         console.log('🔄 SessionId conflict, using fallback ID...');
         contactData.sessionId = `${sessionId}_fallback_${Date.now()}`;
@@ -236,7 +288,6 @@ const handleContactForm = async (req, res) => {
     console.error('❌ Error handling contact form submission:', error);
     console.error('📝 Request body was:', req.body);
     
-    // Handle validation errors
     if (error.name === 'ValidationError') {
       const validationErrors = Object.values(error.errors).map(err => err.message);
       console.log('❌ Validation errors:', validationErrors);
@@ -249,7 +300,6 @@ const handleContactForm = async (req, res) => {
       });
     }
 
-    // Handle duplicate key errors
     if (error.code === 11000) {
       const field = Object.keys(error.keyValue)[0];
       console.log(`❌ Duplicate key error on field: ${field}`, error.keyValue);
@@ -262,7 +312,6 @@ const handleContactForm = async (req, res) => {
       });
     }
 
-    // General server error
     res.status(500).json({
       success: false,
       error: 'Failed to submit contact form. Please try again later.',
@@ -284,14 +333,12 @@ const getAllContacts = async (req, res) => {
       search
     } = req.query;
 
-    // ONLY contact form submissions
     let filter = { source: 'contact_form' };
     
     if (status) filter.status = status;
     if (projectType) filter.projectType = projectType;
     if (priority) filter.priority = priority;
     
-    // Search across multiple fields
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -339,7 +386,7 @@ const getContactById = async (req, res) => {
   try {
     const contact = await Contact.findOne({
       _id: req.params.id,
-      source: 'contact_form' // Only contact form submissions
+      source: 'contact_form'
     }).populate('assignedTo', 'name email');
 
     if (!contact) {
@@ -370,10 +417,8 @@ const updateContact = async (req, res) => {
   try {
     const updates = req.body;
     
-    // Ensure we're only updating contact form submissions
     updates.source = 'contact_form';
     
-    // Remove fields that shouldn't be updated directly
     delete updates._id;
     delete updates.createdAt;
     delete updates.updatedAt;
@@ -381,7 +426,7 @@ const updateContact = async (req, res) => {
     const contact = await Contact.findOneAndUpdate(
       { 
         _id: req.params.id,
-        source: 'contact_form' // Only update contact form submissions
+        source: 'contact_form'
       },
       { ...updates, lastContactDate: new Date() },
       { new: true, runValidators: true }
@@ -413,64 +458,32 @@ const updateContact = async (req, res) => {
   }
 };
 
-// Get contact form statistics ONLY (NO chat widget data)
+// Get contact form statistics ONLY
 const getContactStats = async (req, res) => {
   try {
-    // ONLY contact form submissions
     const contactFormFilter = { source: 'contact_form' };
     const totalContacts = await Contact.countDocuments(contactFormFilter);
     
-    // Contacts by status (contact forms only)
     const statusStats = await Contact.aggregate([
       { $match: contactFormFilter },
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 }
-        }
-      }
+      { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
 
-    // Contacts by project type (contact forms only)
     const projectTypeStats = await Contact.aggregate([
-      { 
-        $match: { 
-          ...contactFormFilter,
-          projectType: { $ne: null } 
-        } 
-      },
-      {
-        $group: {
-          _id: '$projectType',
-          count: { $sum: 1 }
-        }
-      },
-      {
-        $sort: { count: -1 }
-      }
+      { $match: { ...contactFormFilter, projectType: { $ne: null } } },
+      { $group: { _id: '$projectType', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
     ]);
 
-    // Recent contacts (last 30 days, contact forms only)
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const recentContacts = await Contact.countDocuments({
       ...contactFormFilter,
       createdAt: { $gte: thirtyDaysAgo }
     });
 
-    // Tradeshow responses (contact forms only)
     const tradeshowStats = await Contact.aggregate([
-      { 
-        $match: { 
-          ...contactFormFilter,
-          tradeshowResponse: { $ne: null } 
-        } 
-      },
-      {
-        $group: {
-          _id: '$tradeshowResponse',
-          count: { $sum: 1 }
-        }
-      }
+      { $match: { ...contactFormFilter, tradeshowResponse: { $ne: null } } },
+      { $group: { _id: '$tradeshowResponse', count: { $sum: 1 } } }
     ]);
 
     console.log('📝 Generated contact form statistics');
@@ -503,7 +516,7 @@ const deleteContact = async (req, res) => {
   try {
     const contact = await Contact.findOneAndDelete({
       _id: req.params.id,
-      source: 'contact_form' // Only delete contact form submissions
+      source: 'contact_form'
     });
 
     if (!contact) {
