@@ -225,7 +225,7 @@ const handleContactForm = async (req, res) => {
       // Send email notification for new contact
       try {
         await resend.emails.send({
-          from: 'noreply@wayuptechn.com',
+          from: 'noreply@getdevcontrol.com',
           to: 'projectmanager@wayuptechn.com',
           subject: `🔔 New Lead: ${finalName} — ${finalProjectType}`,
           html: `
