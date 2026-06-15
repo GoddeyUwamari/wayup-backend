@@ -247,7 +247,8 @@ const handleContactForm = async (req, res) => {
         });
         console.log('📧 Email notification sent for new contact form submission');
       } catch (emailError) {
-        console.error('⚠️ Email notification failed (non-critical):', emailError.message);
+        console.error('⚠️ Email notification failed:', emailError.message);
+        console.error('⚠️ Email error details:', JSON.stringify(emailError));
       }
 
       res.status(201).json({
